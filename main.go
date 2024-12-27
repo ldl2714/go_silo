@@ -22,20 +22,3 @@ func main() {
 		log.Fatalf("服务器启动失败: %v", err)
 	}
 }
-
-// package main
-
-// import (
-// 	"go_silo/db"
-// 	"go_silo/router"
-// 	"log"
-// )
-
-//	func main() {
-//		// 确保数据库连接成功
-//		if db.Mongo == nil {
-//			log.Fatal("MongoDB 连接失败")
-//		}
-//		e := router.Router()
-//		e.Run(":2714")
-//	}

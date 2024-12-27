@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// 查询所有文档
+// 获取物料信息
 func GetMaterial(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
@@ -107,12 +107,12 @@ func UpdateMaterial(db *mongo.Database) gin.HandlerFunc {
 		if material.Water != 0 && material.Water != existingMaterial.Water {
 			updateFields = append(updateFields, bson.E{Key: "water", Value: material.Water})
 		}
-		if material.MaxRatio != 0 && material.MaxRatio != existingMaterial.MaxRatio {
-			updateFields = append(updateFields, bson.E{Key: "maxRatio", Value: material.MaxRatio})
-		}
-		if material.MinRatio != 0 && material.MinRatio != existingMaterial.MinRatio {
-			updateFields = append(updateFields, bson.E{Key: "minRatio", Value: material.MinRatio})
-		}
+		// if material.MaxRatio != 0 && material.MaxRatio != existingMaterial.MaxRatio {
+		// 	updateFields = append(updateFields, bson.E{Key: "maxRatio", Value: material.MaxRatio})
+		// }
+		// if material.MinRatio != 0 && material.MinRatio != existingMaterial.MinRatio {
+		// 	updateFields = append(updateFields, bson.E{Key: "minRatio", Value: material.MinRatio})
+		// }
 
 		// 如果没有字段需要更新，返回提示信息
 		if len(updateFields) == 0 {
