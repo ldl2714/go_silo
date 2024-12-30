@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// 初始化modbus客户端
-	modbus.Modbus()
+	modbusClient := modbus.Modbus()
 
 	// 初始化数据库连接
 	database := db.Mongo
@@ -19,7 +19,7 @@ func main() {
 	utils.StartInsertingRealTime(database)
 
 	// 启动所有定时任务
-	utils.StartSchedulers()
+	utils.StartSchedulers(modbusClient, database)
 
 	// 设置路由并传递数据库实例
 	r := router.SetupRouter(database)

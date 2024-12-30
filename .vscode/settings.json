@@ -1,3 +1,12 @@
 {
-  "cSpell.words": ["bson", "goburrow", "gonic", "modbus", "robfig"]
+  "cSpell.words": [
+    "bson",
+    "goburrow",
+    "gonic",
+    "modbus",
+    "QMAX",
+    "qmin",
+    "robfig",
+    "YMAN"
+  ]
 }
