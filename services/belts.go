@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"go_silo/models"
+	"go_silo/utils"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -78,6 +80,7 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 
 		collection := db.Collection("belt")
 		staticCollection := db.Collection("static")
+		eventCollection := db.Collection("event")
 
 		// 获取 static 表中的数据
 		var staticData models.StaticModel
@@ -146,6 +149,17 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 				return
 			}
+
+			// 记录事件
+			event := models.EventModel{
+				Date:  time.Now(),
+				Shift: utils.GetShift(),
+				Event: "修改" + ratioUpdate.ID + "皮带，配比由" + strconv.Itoa(int(belt.Ratio)) + "%，改为" + strconv.Itoa(int(ratioUpdate.Ratio)) + "%",
+			}
+			_, err = eventCollection.InsertOne(context.Background(), event)
+			if err != nil {
+				log.Printf("Error inserting event: %v", err)
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Belt ratios and specVol updated successfully"})
@@ -167,12 +181,33 @@ func UpdateBeltMaterialId(db *mongo.Database) gin.HandlerFunc {
 			return
 		}
 
-		// 获取新的 material 数据
-		var material models.MaterialModel
+		collection := db.Collection("belt")
 		materialCollection := db.Collection("material")
-		err := materialCollection.FindOne(context.Background(), bson.D{{Key: "id", Value: requestBody.MaterialId}}).Decode(&material)
+		eventCollection := db.Collection("event")
+
+		// 获取旧的 belt 数据
+		var oldBelt models.BeltModel
+		err := collection.FindOne(context.Background(), bson.D{{Key: "id", Value: requestBody.ID}}).Decode(&oldBelt)
 		if err != nil {
-			log.Printf("Error finding material: %v", err)
+			log.Printf("Error finding old belt: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
+
+		// 获取旧的 material 数据
+		var oldMaterial models.MaterialModel
+		err = materialCollection.FindOne(context.Background(), bson.D{{Key: "id", Value: oldBelt.MaterialId}}).Decode(&oldMaterial)
+		if err != nil {
+			log.Printf("Error finding old material: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
+
+		// 获取新的 material 数据
+		var newMaterial models.MaterialModel
+		err = materialCollection.FindOne(context.Background(), bson.D{{Key: "id", Value: requestBody.MaterialId}}).Decode(&newMaterial)
+		if err != nil {
+			log.Printf("Error finding new material: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 			return
 		}
@@ -184,19 +219,29 @@ func UpdateBeltMaterialId(db *mongo.Database) gin.HandlerFunc {
 		update := bson.M{
 			"$set": bson.M{
 				"materialId":   requestBody.MaterialId,
-				"materialName": material.MaterialName,
-				"maxWater":     material.MaxWater,
-				"minWater":     material.MinWater,
-				"water":        material.Water,
+				"materialName": newMaterial.MaterialName,
+				"maxWater":     newMaterial.MaxWater,
+				"minWater":     newMaterial.MinWater,
+				"water":        newMaterial.Water,
 			},
 		}
 
-		collection := db.Collection("belt")
 		_, err = collection.UpdateOne(context.Background(), filter, update)
 		if err != nil {
 			log.Printf("Error updating belt materialId for ID %s: %v", requestBody.ID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 			return
+		}
+
+		// 记录事件
+		event := models.EventModel{
+			Date:  time.Now(),
+			Shift: utils.GetShift(),
+			Event: "修改" + requestBody.ID + "皮带物料，由" + oldMaterial.MaterialName + "，改为" + newMaterial.MaterialName,
+		}
+		_, err = eventCollection.InsertOne(context.Background(), event)
+		if err != nil {
+			log.Printf("Error inserting event: %v", err)
 		}
 
 		// 同步更新相关的 belt 文档

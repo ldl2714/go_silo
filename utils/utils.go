@@ -36,3 +36,14 @@ func StartInsertingRealTime(db *mongo.Database) {
 		}
 	}()
 }
+
+// GetShift 返回当前时间的班次（白班或夜班）
+func GetShift() string {
+	now := time.Now()
+	hour := now.Hour()
+
+	if hour >= 8 && hour < 17 {
+		return "白班"
+	}
+	return "夜班"
+}

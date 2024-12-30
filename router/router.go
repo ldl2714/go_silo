@@ -7,12 +7,14 @@ import (
 
 func SetupRouter(db *mongo.Database) *gin.Engine {
 	r := gin.Default()
-	//Belt-皮带
+	// Belt-皮带
 	BeltRouter(r, db)
 	// Material-物料
 	MaterialRouter(r, db)
 	// Static-静态信息
 	StaticRouter(r, db)
+	// Event-事件
+	EventRouter(r, db)
 
 	return r
 }

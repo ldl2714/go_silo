@@ -2,6 +2,7 @@ package services
 
 import (
 	"go_silo/models"
+	"go_silo/utils"
 	"log"
 	"net/http"
 
@@ -37,8 +38,24 @@ func GetStatic(db *mongo.Database) gin.HandlerFunc {
 				log.Printf("Error decoding static: %v, skipping document", err)
 				continue // 如果解码失败，跳过当前记录
 			}
+			// 获取当前班次并更新 shift 字段
+			shift := utils.GetShift()
+			static.Shift = shift
+
+			// 更新 static 表中的 shift 字段
+			update := bson.M{
+				"$set": bson.M{
+					"shift": shift,
+				},
+			}
+			_, err = collection.UpdateOne(ctx, bson.M{"id": static.ID}, update)
+			if err != nil {
+				log.Printf("Error updating static shift for ID %d: %v", static.ID, err)
+			}
+
 			statics = append(statics, static)
 		}
+
 		//如果 cursor 在遍历时发生错误，打印错误并返回
 		if err := cursor.Err(); err != nil {
 			log.Printf("Cursor error: %v", err)

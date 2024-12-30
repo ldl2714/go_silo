@@ -21,7 +21,8 @@ func InitMongo() *mongo.Database {
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatalf("连接 MongoDB 错误: %v", err)
+	} else {
+		fmt.Println("数据库连接成功")
 	}
-	fmt.Println("数据库连接成功")
 	return client.Database("bx_silo")
 }

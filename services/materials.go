@@ -3,8 +3,11 @@ package services
 import (
 	"context"
 	"go_silo/models"
+	"go_silo/utils"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -80,7 +83,7 @@ func UpdateMaterial(db *mongo.Database) gin.HandlerFunc {
 		// 获取现有文档
 		var existingMaterial models.MaterialModel
 		collection := db.Collection("material")
-		err := collection.FindOne(c, filter).Decode(&existingMaterial)
+		err := collection.FindOne(context.Background(), filter).Decode(&existingMaterial)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
 				// 如果没有找到文档，返回 404 错误
@@ -107,12 +110,6 @@ func UpdateMaterial(db *mongo.Database) gin.HandlerFunc {
 		if material.Water != 0 && material.Water != existingMaterial.Water {
 			updateFields = append(updateFields, bson.E{Key: "water", Value: material.Water})
 		}
-		// if material.MaxRatio != 0 && material.MaxRatio != existingMaterial.MaxRatio {
-		// 	updateFields = append(updateFields, bson.E{Key: "maxRatio", Value: material.MaxRatio})
-		// }
-		// if material.MinRatio != 0 && material.MinRatio != existingMaterial.MinRatio {
-		// 	updateFields = append(updateFields, bson.E{Key: "minRatio", Value: material.MinRatio})
-		// }
 
 		// 如果没有字段需要更新，返回提示信息
 		if len(updateFields) == 0 {
@@ -126,15 +123,82 @@ func UpdateMaterial(db *mongo.Database) gin.HandlerFunc {
 		}
 
 		// 执行更新操作
-		_, err = collection.UpdateOne(c, filter, update)
+		_, err = collection.UpdateOne(context.Background(), filter, update)
 		if err != nil {
 			log.Printf("Error updating material: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 			return
 		}
 
+		// 获取所有使用该 material 的 belt 数据
+		beltCollection := db.Collection("belt")
+		cursor, err := beltCollection.Find(context.Background(), bson.D{{Key: "materialId", Value: material.ID}})
+		if err != nil {
+			log.Printf("Error finding belts: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
+		defer cursor.Close(context.Background())
+
+		var belts []models.BeltModel
+		if err = cursor.All(context.Background(), &belts); err != nil {
+			log.Printf("Error decoding belts: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
+
+		// 获取 static 表中的数据
+		staticCollection := db.Collection("static")
+		var staticData models.StaticModel
+		err = staticCollection.FindOne(context.Background(), bson.D{{Key: "id", Value: 1}}).Decode(&staticData)
+		if err != nil {
+			log.Printf("Error finding static data: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
+
+		// 更新每个 belt 的 specVol
+		for _, belt := range belts {
+			var flowRate float64
+			if belt.Parent == 1 {
+				flowRate = float64(staticData.SetFlowRate1)
+			} else if belt.Parent == 2 {
+				flowRate = float64(staticData.SetFlowRate2)
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parent value"})
+				return
+			}
+
+			specVol := flowRate * (float64(belt.Ratio) / 100) / (1 - material.Water/100)
+			specVol = float64(int(specVol*100)) / 100 // 保留两位小数
+
+			// 设置更新操作
+			update := bson.M{
+				"$set": bson.M{
+					"specVol": specVol,
+				},
+			}
+
+			_, err = beltCollection.UpdateOne(context.Background(), bson.D{{Key: "id", Value: belt.ID}}, update)
+			if err != nil {
+				log.Printf("Error updating belt specVol for ID %s: %v", belt.ID, err)
+			}
+		}
+
+		// 记录事件
+		eventCollection := db.Collection("event")
+		event := models.EventModel{
+			Date:  time.Now(),
+			Shift: utils.GetShift(),
+			Event: "修改" + existingMaterial.MaterialName + "的水分，由" + strconv.FormatFloat(existingMaterial.Water, 'f', 2, 64) + "%，改为" + strconv.FormatFloat(material.Water, 'f', 2, 64) + "%",
+		}
+		_, err = eventCollection.InsertOne(context.Background(), event)
+		if err != nil {
+			log.Printf("Error inserting event: %v", err)
+		}
+
 		// 返回成功响应
-		c.JSON(http.StatusOK, gin.H{"message": "Material updated successfully"})
+		c.JSON(http.StatusOK, gin.H{"message": "Material and related belts updated successfully"})
 	}
 }
 
