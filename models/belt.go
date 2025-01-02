@@ -9,6 +9,11 @@ type BeltModel struct {
 	Ratio      int32   `bson:"ratio"`
 	SpecVol    float64 `bson:"specVol"`
 	Vol        float64 `bson:"vol"`
+	Diff       float64 `bson:"diff"`
+	Rate       float64 `bson:"rate"`
+	WetAcc     float64 `bson:"wetAcc"`
+	DryAcc     float64 `bson:"dryAcc"`
+	Running    int32   `bson:"running"`
 	//-----------------------------
 	MaterialName string  `bson:"materialName,omitempty"`
 	MaxWater     float64 `bson:"maxWater,omitempty"`

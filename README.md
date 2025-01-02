@@ -5,8 +5,8 @@
 ## 使用的库
 
 ```shell
-$ cron : go get github.com/robfig/cron/v3
-$ gin : go get -u github.com/gin-gonic/gin
-$ mongo : go get go.mongodb.org/mongo-driver/mongo
-$ modbus : go get github.com/goburrow/modbus
+$ cron : go get github.com/robfig/cron/v3                //时间库
+$ gin : go get -u github.com/gin-gonic/gin               //go框架
+$ mongo : go get go.mongodb.org/mongo-driver/mongo       //mongo数据库
+$ modbus : go get github.com/goburrow/modbus             //modbus-plc连接
 ```

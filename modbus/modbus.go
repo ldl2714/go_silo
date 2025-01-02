@@ -70,6 +70,37 @@ func (mc *ModbusClient) ReadHoldingRegisters(address, quantity uint16) ([]byte, 
 	return results, nil
 }
 
+// 添加写入线圈的方法
+func (mc *ModbusClient) WriteCoil(address uint16, value bool) error {
+	var coilValue uint16
+	if value {
+		coilValue = 0xFF00
+	} else {
+		coilValue = 0x0000
+	}
+	_, err := mc.client.WriteSingleCoil(address, coilValue)
+	if err != nil {
+		mc.AutoReconnect()
+		_, err = mc.client.WriteSingleCoil(address, coilValue)
+	}
+	return err
+}
+
+// 添加写入寄存器的方法
+func (mc *ModbusClient) WriteRegisters(address uint16, values [2]uint16) error {
+	_, err := mc.client.WriteMultipleRegisters(address, 2, []byte{
+		byte(values[0] >> 8), byte(values[0] & 0xFF),
+		byte(values[1] >> 8), byte(values[1] & 0xFF),
+	})
+	if err != nil {
+		mc.AutoReconnect()
+		_, err = mc.client.WriteMultipleRegisters(address, 2, []byte{
+			byte(values[0] >> 8), byte(values[0] & 0xFF),
+			byte(values[1] >> 8), byte(values[1] & 0xFF),
+		})
+	}
+	return err
+}
 func Modbus() *ModbusClient {
 	var address = "192.168.2.149:502" // 替换为你的 PLC 地址
 	client := NewModbusClient(address)

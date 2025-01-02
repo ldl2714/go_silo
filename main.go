@@ -22,7 +22,8 @@ func main() {
 	utils.StartSchedulers(modbusClient, database)
 
 	// 设置路由并传递数据库实例
-	r := router.SetupRouter(database)
+	r := router.SetupRouter(modbusClient, database)
+	// pkgB.CallA()
 
 	// 启动服务器
 	if err := r.Run(":2714"); err != nil {

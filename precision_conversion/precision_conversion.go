@@ -17,3 +17,32 @@ func Transform16BitTo32FloatSmall(left uint16, right uint16) float32 {
 	// 从缓冲区读取 32 位浮点数
 	return math.Float32frombits(binary.LittleEndian.Uint32(buffer[:]))
 }
+
+// 读取转换
+func TransformToTime(lowWord uint16, highWord uint16) uint32 {
+	// 合并高低字
+	combinedValue := uint32(lowWord)
+
+	return combinedValue // 返回以秒为单位的时间
+}
+
+// 写入转换
+func TransToTimeWrite(data uint32) [2]uint16 {
+	var buffer [4]byte
+	binary.LittleEndian.PutUint32(buffer[:], data)
+
+	lowWord := binary.LittleEndian.Uint16(buffer[0:2])  // 低 16 位
+	highWord := binary.LittleEndian.Uint16(buffer[2:4]) // 高 16 位
+
+	return [2]uint16{lowWord, highWord}
+}
+
+func Transform32FloatTo16BitSmall(value float32) [2]uint16 {
+	var buffer [4]byte
+	binary.BigEndian.PutUint32(buffer[:], math.Float32bits(value))
+
+	left := binary.BigEndian.Uint16(buffer[0:2])
+	right := binary.BigEndian.Uint16(buffer[2:4])
+
+	return [2]uint16{right, left}
+}

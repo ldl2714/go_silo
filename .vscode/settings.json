@@ -4,6 +4,7 @@
     "goburrow",
     "gonic",
     "modbus",
+    "pids",
     "QMAX",
     "qmin",
     "robfig",

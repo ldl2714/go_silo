@@ -2,6 +2,7 @@ package utils
 
 import (
 	"go_silo/modbus"
+	"go_silo/tasks"
 	"log"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -27,7 +28,8 @@ func StartSchedulers(client *modbus.ModbusClient, db *mongo.Database) {
 	// 每3秒调用一次的定时任务
 	_, err = c.AddFunc("*/3 * * * * *", func() {
 		// 使用持久的 ModbusClient 实例读取数据
-		// modbus.ReadVol(client, db)
+		modbus.ReadVol(client, db)
+		modbus.ReadPid(client, db)
 	})
 	if err != nil {
 		log.Fatalf("Error scheduling every second task: %v", err)
@@ -36,7 +38,7 @@ func StartSchedulers(client *modbus.ModbusClient, db *mongo.Database) {
 	//每秒调用一次的定时任务
 	_, err = c.AddFunc("* * * * * *", func() {
 		// 使用持久的 ModbusClient 实例读取数据
-		modbus.UpdateBeltTable(client, db)
+		tasks.UpdateBeltVol(db)
 	})
 	if err != nil {
 		log.Fatalf("Error scheduling every second task: %v", err)
