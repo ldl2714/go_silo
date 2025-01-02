@@ -30,6 +30,7 @@ func StartSchedulers(client *modbus.ModbusClient, db *mongo.Database) {
 		// 使用持久的 ModbusClient 实例读取数据
 		modbus.ReadVol(client, db)
 		modbus.ReadPid(client, db)
+		modbus.MaterialLevel(client, db)
 	})
 	if err != nil {
 		log.Fatalf("Error scheduling every second task: %v", err)

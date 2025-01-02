@@ -13,6 +13,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // ReadVol 读取 Vol 地址的值并将值存入 pid 表中
@@ -192,6 +193,61 @@ func ReadPid(client *ModbusClient, db *mongo.Database) {
 		_, err := db.Collection("pid").UpdateOne(context.Background(), bson.M{"id": pidID}, update)
 		if err != nil {
 			log.Printf("Failed to update PID_SP and PID_TD for ID %s: %v", pidID, err)
+		}
+	}
+}
+
+func MaterialLevel(client *ModbusClient, db *mongo.Database) {
+	startAddress := uint16(5576)
+	interval := uint16(12)
+	numData := 20
+	var floatValues []float32
+
+	for i := 0; i < numData; i++ {
+		addr := startAddress + uint16(i)*interval
+		length := uint16(4) // 每次读取 4 个字节
+
+		results, err := client.ReadHoldingRegisters(addr, length)
+		if err != nil {
+			log.Printf("Failed to read holding registers from address %d: %v", addr, err)
+			return
+		}
+
+		// log.Printf("Read results from address %d: %v", addr, results)
+
+		if len(results) < 4 {
+			log.Printf("Not enough data read from address %d", addr)
+			continue
+		}
+
+		left := binary.BigEndian.Uint16(results[0:2])
+		right := binary.BigEndian.Uint16(results[2:4])
+		floatValue := precision_conversion.Transform16BitTo32FloatSmall(left, right)
+		// log.Printf("Converted float value from left: %d, right: %d -> %f", left, right, floatValue)
+		floatValues = append(floatValues, floatValue)
+	}
+
+	// log.Println("All float values:", floatValues)
+
+	// 将数据写入 level 表中
+	for i := 0; i < numData; i += 2 {
+		id := (i / 2) + 1
+		materialLevel1 := floatValues[i]
+		materialLevel2 := floatValues[i+1]
+
+		_, err := db.Collection("level").UpdateOne(
+			context.Background(),
+			bson.M{"id": id},
+			bson.M{
+				"$set": bson.M{
+					"MaterialLevel1": materialLevel1,
+					"MaterialLevel2": materialLevel2,
+				},
+			},
+			options.Update().SetUpsert(true),
+		)
+		if err != nil {
+			log.Printf("Failed to update level data for ID %d: %v", id, err)
 		}
 	}
 }

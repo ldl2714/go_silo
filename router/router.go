@@ -17,7 +17,10 @@ func SetupRouter(client *modbus.ModbusClient, db *mongo.Database) *gin.Engine {
 	StaticRouter(r, db)
 	// Event-事件
 	EventRouter(r, db)
+	//Level-料位
+	LevelRouter(r, db)
 	// Pid
 	PidRouter(r, db, client)
+
 	return r
 }
