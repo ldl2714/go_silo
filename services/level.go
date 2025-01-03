@@ -27,13 +27,17 @@ func GetLevel(db *mongo.Database) gin.HandlerFunc {
 		}
 		defer cursor.Close(ctx)
 
-		var levels []models.LevelModel
+		var levels []gin.H
 		for cursor.Next(ctx) {
 			var level models.LevelModel
 			if err := cursor.Decode(&level); err != nil {
 				continue
 			}
-			levels = append(levels, level)
+			levels = append(levels, gin.H{
+				"id":             level.ID,
+				"MaterialLevel1": level.MaterialLevel1,
+				"MaterialLevel2": level.MaterialLevel2,
+			})
 		}
 		if err := cursor.Err(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

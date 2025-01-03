@@ -2,7 +2,11 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"go_silo/modbus"
 	"go_silo/models"
+	"go_silo/precision_conversion"
+	"go_silo/profiles"
 	"go_silo/utils"
 	"log"
 	"net/http"
@@ -68,7 +72,7 @@ func GetBelt(db *mongo.Database) gin.HandlerFunc {
 }
 
 // 修改 皮带配比
-func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
+func UpdateBeltRatio(db *mongo.Database, client *modbus.ModbusClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var requestBody struct {
 			Ratios []models.BeltModel `json:"ratios"`
@@ -81,6 +85,7 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 		collection := db.Collection("belt")
 		staticCollection := db.Collection("static")
 		eventCollection := db.Collection("event")
+		levelCollection := db.Collection("level")
 
 		// 获取 static 表中的数据
 		var staticData models.StaticModel
@@ -91,26 +96,30 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 			return
 		}
 
+		// 批量更新 belt 表中的 ratio
+		var updates []mongo.WriteModel
 		for _, ratioUpdate := range requestBody.Ratios {
-			// 验证 ID 和 Ratio 是否有效
-			if ratioUpdate.ID == "" || ratioUpdate.Ratio < 0 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID or Ratio"})
-				return
-			}
+			updates = append(updates, mongo.NewUpdateOneModel().
+				SetFilter(bson.D{{Key: "id", Value: ratioUpdate.ID}}).
+				SetUpdate(bson.M{"$set": bson.M{"ratio": ratioUpdate.Ratio}}))
+		}
+		_, err = collection.BulkWrite(context.Background(), updates)
+		if err != nil {
+			log.Printf("Error bulk updating belt ratios: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
+		}
 
-			// 设置查询条件
-			filter := bson.D{{Key: "id", Value: ratioUpdate.ID}}
-
-			// 获取 belt 数据
+		// 处理每个更新的 belt 和 material，并执行相应的服务逻辑
+		for _, ratioUpdate := range requestBody.Ratios {
 			var belt models.BeltModel
-			err := collection.FindOne(context.Background(), filter).Decode(&belt)
+			err := collection.FindOne(context.Background(), bson.D{{Key: "id", Value: ratioUpdate.ID}}).Decode(&belt)
 			if err != nil {
 				log.Printf("Error finding belt: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 				return
 			}
 
-			// 获取 material 数据
 			var material models.MaterialModel
 			materialCollection := db.Collection("material")
 			err = materialCollection.FindOne(context.Background(), bson.D{{Key: "id", Value: ratioUpdate.MaterialId}}).Decode(&material)
@@ -134,18 +143,10 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 			specVol := flowRate * (float64(ratioUpdate.Ratio) / 100) / (1 - material.Water/100)
 			specVol = float64(int(specVol*100)) / 100 // 保留两位小数
 
-			// 设置更新操作
-			update := bson.M{
-				"$set": bson.M{
-					"ratio":      ratioUpdate.Ratio,
-					"materialId": ratioUpdate.MaterialId,
-					"specVol":    specVol,
-				},
-			}
-
-			_, err = collection.UpdateOne(context.Background(), filter, update)
+			// 更新 belt 表中的 specVol
+			_, err = collection.UpdateOne(context.Background(), bson.D{{Key: "id", Value: ratioUpdate.ID}}, bson.M{"$set": bson.M{"specVol": specVol}})
 			if err != nil {
-				log.Printf("Error updating belt ratio for ID %s: %v", ratioUpdate.ID, err)
+				log.Printf("Error updating belt specVol for ID %s: %v", ratioUpdate.ID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 				return
 			}
@@ -160,6 +161,63 @@ func UpdateBeltRatio(db *mongo.Database) gin.HandlerFunc {
 			if err != nil {
 				log.Printf("Error inserting event: %v", err)
 			}
+
+			// 拆分 ID
+			parts := strings.Split(ratioUpdate.ID, "-")
+			if len(parts) != 2 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+				return
+			}
+
+			siloID := parts[0]
+			beltID := parts[1]
+
+			// 获取 level 数据
+			var level models.LevelModel
+			err = levelCollection.FindOne(context.Background(), bson.D{}).Decode(&level)
+			if err != nil {
+				log.Printf("Error finding level: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+				return
+			}
+
+			// 根据 disk 字段分配 specVol
+			cache := struct {
+				OneID    string
+				OneValue int
+				TwoID    string
+				TwoValue int
+			}{}
+
+			if beltID == "1" {
+				cache.OneID = fmt.Sprintf("%s-1", siloID)
+				cache.TwoID = fmt.Sprintf("%s-2", siloID)
+				cache.OneValue = boolToInt(level.Disk1)
+				cache.TwoValue = boolToInt(level.Disk2)
+			} else if beltID == "2" {
+				cache.OneID = fmt.Sprintf("%s-3", siloID)
+				cache.TwoID = fmt.Sprintf("%s-4", siloID)
+				cache.OneValue = boolToInt(level.Disk3)
+				cache.TwoValue = boolToInt(level.Disk4)
+			}
+
+			defaultDenominator := cache.OneValue + cache.TwoValue
+			if defaultDenominator == 0 {
+				defaultDenominator = 1
+			}
+
+			oneSpecVol := specVol * (float64(cache.OneValue) / float64(defaultDenominator))
+			twoSpecVol := specVol * (float64(cache.TwoValue) / float64(defaultDenominator))
+
+			onePidConf := findParameterProfile(cache.OneID)
+			twoPidConf := findParameterProfile(cache.TwoID)
+
+			// 打印 PID 配置和计算的 specVol
+			log.Printf("PID_SP for %s: %d, SpecVol: %f", cache.OneID, onePidConf.PID_SP, oneSpecVol)
+			log.Printf("PID_SP for %s: %d, SpecVol: %f", cache.TwoID, twoPidConf.PID_SP, twoSpecVol)
+
+			client.WriteRegisters(uint16(onePidConf.PID_SP), precision_conversion.Transform32FloatTo16BitSmall(float32(oneSpecVol)))
+			client.WriteRegisters(uint16(twoPidConf.PID_SP), precision_conversion.Transform32FloatTo16BitSmall(float32(twoSpecVol)))
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Belt ratios and specVol updated successfully"})
@@ -281,4 +339,22 @@ func getRelatedIDs(id string) []string {
 	default:
 		return nil
 	}
+}
+
+// bool 转换
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// 配置表 检索
+func findParameterProfile(id string) profiles.ParameterProfile {
+	for _, profile := range profiles.ParameterProfiles {
+		if profile.ID == id {
+			return profile
+		}
+	}
+	return profiles.ParameterProfile{}
 }

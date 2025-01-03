@@ -38,6 +38,8 @@ func TransToTimeWrite(data uint32) [2]uint16 {
 }
 
 func Transform32FloatTo16BitSmall(value float32) [2]uint16 {
+	// 四舍五入到两位小数
+	value = float32(math.Round(float64(value)*100) / 100)
 	var buffer [4]byte
 	binary.BigEndian.PutUint32(buffer[:], math.Float32bits(value))
 

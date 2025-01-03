@@ -10,7 +10,7 @@ import (
 func SetupRouter(client *modbus.ModbusClient, db *mongo.Database) *gin.Engine {
 	r := gin.Default()
 	// Belt-皮带
-	BeltRouter(r, db)
+	BeltRouter(r, db, client)
 	// Material-物料
 	MaterialRouter(r, db)
 	// Static-静态信息
@@ -21,6 +21,7 @@ func SetupRouter(client *modbus.ModbusClient, db *mongo.Database) *gin.Engine {
 	LevelRouter(r, db)
 	// Pid
 	PidRouter(r, db, client)
-
+	// disk
+	DiskRouter(r, db)
 	return r
 }

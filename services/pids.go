@@ -7,6 +7,7 @@ import (
 	"go_silo/precision_conversion"
 	"go_silo/profiles"
 	"log"
+	"math"
 	"net/http"
 	"reflect"
 	"strings"
@@ -38,6 +39,11 @@ func GetPid(db *mongo.Database) gin.HandlerFunc {
 		for cursor.Next(ctx) {
 			// 解码单个 pid 到结构体
 			var pid models.PidModel
+			if err := cursor.Decode(&pid); err != nil {
+				log.Println("Error decoding pid:", err)
+				continue // 如果解码失败，跳过当前记录
+			}
+			pid.PID_SP = math.Round(pid.PID_SP*100) / 100
 			if err := cursor.Decode(&pid); err != nil {
 				log.Println("Error decoding pid:", err)
 				continue // 如果解码失败，跳过当前记录

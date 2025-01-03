@@ -88,6 +88,7 @@ func (mc *ModbusClient) WriteCoil(address uint16, value bool) error {
 
 // 添加写入寄存器的方法
 func (mc *ModbusClient) WriteRegisters(address uint16, values [2]uint16) error {
+	fmt.Println(address, values)
 	_, err := mc.client.WriteMultipleRegisters(address, 2, []byte{
 		byte(values[0] >> 8), byte(values[0] & 0xFF),
 		byte(values[1] >> 8), byte(values[1] & 0xFF),
