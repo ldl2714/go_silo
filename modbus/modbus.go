@@ -105,11 +105,25 @@ func (mc *ModbusClient) WriteRegisters(address uint16, values [2]uint16) error {
 func Modbus() *ModbusClient {
 	var address = "192.168.2.149:502" // 替换为你的 PLC 地址
 	client := NewModbusClient(address)
-	err := client.Connect()
-	if err != nil {
-		log.Fatalf("Failed to connect to PLC: %v", err)
-	} else {
-		fmt.Println("PLC连接成功")
+	// 设置最大重试次数
+	maxRetries := 5
+	retryInterval := 2 * time.Second
+
+	// 尝试连接 PLC，并在失败时重试
+	for retries := 0; retries < maxRetries; retries++ {
+		err := client.Connect()
+		if err != nil {
+			log.Printf("连接失败, 重试 %d/%d: %v", retries+1, maxRetries, err)
+			// 等待一段时间后再次尝试
+			time.Sleep(retryInterval)
+		} else {
+			// 连接成功
+			fmt.Println("PLC连接成功")
+			return client
+		}
 	}
-	return client
+
+	// 如果重试次数超过最大限制，输出错误并退出
+	log.Fatalf("无法连接到 PLC，超过最大重试次数 %d", maxRetries)
+	return nil
 }

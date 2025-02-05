@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// 获取 event 表中数据
 func GetEvent(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()

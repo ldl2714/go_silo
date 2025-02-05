@@ -60,7 +60,7 @@ func ReadVol(client *ModbusClient, db *mongo.Database) {
 	}
 }
 
-// ReadPid 读取布尔值，地址为 9000，长度为 318
+// ReadPid 读取pid
 func ReadPid(client *ModbusClient, db *mongo.Database) {
 	//定义一个大数组来存储读取到的数据
 	var values []interface{}

@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// 物料 料位 与 圆盘开关表
 func GetLevel(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()

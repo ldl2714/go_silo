@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// GetDisk 获取 disk 表中数据
 func GetDisk(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取 disk 表中数据
@@ -35,6 +36,8 @@ func GetDisk(db *mongo.Database) gin.HandlerFunc {
 	}
 
 }
+
+// PutDisk 更新 disk 表中数据
 func PutDisk(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input map[string]interface{}

@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// GetPid 获取 pid 表中数据
 func GetPid(db *mongo.Database) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
@@ -72,6 +73,7 @@ type DiskPidPlcData struct {
 	Value interface{} `json:"value"`
 }
 
+// PutPid 修改 pid 表中数据
 func PutPid(client *modbus.ModbusClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var data DiskPidPlcData
